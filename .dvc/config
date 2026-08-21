@@ -1,0 +1,4 @@
+[core]
+    remote = labstore
+['remote "labstore"']
+    url = s3://income-model-bucket-2a202601244/dvc
