@@ -50,7 +50,7 @@ def test_train_returns_float(tmp_path):
 
 
 def test_report_file_created(tmp_path):
-    """Kiem tra file outputs/report.json duoc tao sau khi huan luyen."""
+    """Kiem tra file outputs/report.json duoc tao day du cac chi so (ke ca Bonus 2 & 5)."""
     train_path, eval_path = _make_temp_data(tmp_path)
     train(
         {"n_estimators": 10, "learning_rate": 0.1, "max_depth": 2},
@@ -63,6 +63,28 @@ def test_report_file_created(tmp_path):
         report = json.load(f)
     assert "f1_score" in report
     assert "accuracy" in report
+    assert "best_threshold" in report
+    assert "best_f1" in report
+    assert "positive_class_ratio" in report
+    assert "drift_warning" in report
+
+
+def test_detail_report_created(tmp_path):
+    """Kiem tra file outputs/detail.txt (Bonus 3) duoc tao voi day du Confusion Matrix va Precision/Recall."""
+    train_path, eval_path = _make_temp_data(tmp_path)
+    train(
+        {"n_estimators": 10, "learning_rate": 0.1, "max_depth": 2},
+        data_path=train_path,
+        eval_path=eval_path,
+    )
+
+    assert os.path.exists("outputs/detail.txt")
+    with open("outputs/detail.txt", encoding="utf-8") as f:
+        content = f.read()
+    assert "CONFUSION MATRIX" in content
+    assert "CLASS-WISE PRECISION & RECALL" in content
+    assert "THRESHOLD TUNING ANALYSIS" in content
+    assert "DATA DISTRIBUTION & DRIFT CHECK" in content
 
 
 def test_model_file_created(tmp_path):
@@ -75,4 +97,5 @@ def test_model_file_created(tmp_path):
     )
 
     assert os.path.exists("models/model.joblib")
+
 

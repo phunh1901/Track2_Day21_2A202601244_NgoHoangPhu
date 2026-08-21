@@ -51,3 +51,13 @@ Do đó, ngưỡng chất lượng của hệ thống bắt buộc phải đặt
 
 **Nhận xét:** Khi bổ sung thêm 22.361 mẫu từ `train_batch2` (tổng cộng 44.722 mẫu), chỉ số `f1_score` tăng nhẹ từ 0.7149 lên 0.7354 và `accuracy` tăng từ 0.8740 lên 0.8820. Do dữ liệu mới cùng phân phối với dữ liệu ban đầu, việc tăng gấp đôi dữ liệu giúp làm mịn biên quyết định cho nhóm thu nhập cao nhưng không tạo ra biến động quá lớn. Quan trọng nhất, toàn bộ vòng lặp Continuous Training từ lúc cập nhật DVC, đẩy S3 đến tự động huấn luyện và cập nhật API trên EC2 đã diễn ra hoàn toàn tự động và chính xác.
 
+---
+
+## 5. Thách Thức Nâng Cao Đã Hoàn Thành (Bonus Challenges)
+
+* **Bonus 2 - Điều Chỉnh Ngưỡng Quyết Định (Threshold Tuning):** Quét ngưỡng xác suất từ 0.10 đến 0.90 (bước 0.05). Tại ngưỡng mặc định 0.50, F1 đạt 0.7354. Ngưỡng tối ưu xác định được là **0.30** với `f1_score` đạt **0.7537** (tăng +0.0183 F1). Do lớp dương chiếm tỷ lệ nhỏ (~24.8%), việc hạ ngưỡng xuống 0.30 giúp mô hình nhạy hơn trong việc phát hiện nhóm thu nhập cao (tăng Recall) mà không làm suy giảm quá nhiều Precision.
+* **Bonus 3 - Báo Cáo Precision / Recall & Confusion Matrix Tự Động:** Hệ thống tự động tạo `outputs/detail.txt` và lưu vào GitHub Actions Artifacts. Kết quả: TN=359, FP=17, FN=42, TP=82 (Class 1: Precision = 0.8283, Recall = 0.6613). *Phân tích chi phí:* Bỏ sót người thu nhập cao (False Negative - Recall thấp) tốn kém hơn việc gán nhầm người thu nhập thấp (False Positive - Precision thấp), vì doanh nghiệp sẽ mất đi các khách hàng mang lại giá trị trọn đời (LTV) cao nhất.
+* **Bonus 4 - Cơ Chế Rollback & Safety Guard:** Pipeline tự động tải `report.json` của phiên bản model đang chạy trên S3 để so sánh F1 trước khi cho phép Job `Release` thực thi, đảm bảo không bao giờ triển khai một mô hình bị suy giảm chất lượng so với bản tiền nhiệm.
+* **Bonus 5 - Cảnh Báo Lệch Lạc Dữ Liệu (Data Drift Check):** Tự động đo lường tỷ lệ lớp dương trước khi huấn luyện (đạt 24.78% so với mốc tham chiếu 24.80%, độ lệch 0.02% < 5%), log trực tiếp lên MLflow và kích hoạt cảnh báo nếu độ lệch vượt ngưỡng cho phép.
+
+
