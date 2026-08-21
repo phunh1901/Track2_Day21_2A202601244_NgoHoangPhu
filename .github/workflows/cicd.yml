@@ -6,7 +6,10 @@ on:
     paths:
       - 'data/**.dvc'
       - 'src/**.py'
+      - 'tests/**.py'
       - 'params.yaml'
+      - 'requirements.txt'
+      - '.github/workflows/cicd.yml'
   workflow_dispatch:
 
 jobs:
@@ -43,6 +46,10 @@ jobs:
     name: Train
     needs: unit-test
     runs-on: ubuntu-latest
+    env:
+      AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+      AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+      AWS_DEFAULT_REGION: ${{ secrets.AWS_REGION || 'us-east-1' }}
     outputs:
       f1: ${{ steps.read_report.outputs.f1 }}
       best_f1: ${{ steps.read_report.outputs.best_f1 }}
@@ -57,12 +64,6 @@ jobs:
 
       - name: Install dependencies
         run: pip install -r requirements.txt
-
-      - name: Authenticate to AWS Cloud Storage
-        run: |
-          echo "AWS_ACCESS_KEY_ID=${{ secrets.AWS_ACCESS_KEY_ID }}" >> $GITHUB_ENV
-          echo "AWS_SECRET_ACCESS_KEY=${{ secrets.AWS_SECRET_ACCESS_KEY }}" >> $GITHUB_ENV
-          echo "AWS_DEFAULT_REGION=${{ secrets.AWS_REGION || 'us-east-1' }}" >> $GITHUB_ENV
 
       - name: Pull data with DVC
         run: dvc pull data/train_batch1.csv.dvc data/holdout.csv.dvc
@@ -83,16 +84,18 @@ jobs:
               f.write(f"best_threshold={d.get('best_threshold', 0.50)}\n")
           PYEOF
 
-      - name: Upload model and report to AWS S3
+      # Model moi chi la candidate. Tuyet doi khong ghi de artifacts/current
+      # truoc khi Quality Gate va model-safety check thanh cong.
+      - name: Upload candidate model and report to AWS S3
         run: |
           python - <<'PYEOF'
-          import os
           import boto3
           s3 = boto3.client('s3')
           bucket_name = "${{ secrets.ARTIFACT_BUCKET }}"
-          s3.upload_file('models/model.joblib', bucket_name, 'artifacts/current/model.joblib')
-          s3.upload_file('outputs/report.json', bucket_name, 'artifacts/current/report.json')
-          print(f"Uploaded models and report to s3://{bucket_name}/artifacts/current/")
+          candidate_prefix = "artifacts/candidates/${{ github.sha }}"
+          s3.upload_file('models/model.joblib', bucket_name, f'{candidate_prefix}/model.joblib')
+          s3.upload_file('outputs/report.json', bucket_name, f'{candidate_prefix}/report.json')
+          print(f"Uploaded candidate to s3://{bucket_name}/{candidate_prefix}/")
           PYEOF
 
       - name: Save report and detail as artifacts (Bonus 3)
@@ -113,12 +116,17 @@ jobs:
     name: Quality Gate
     needs: train
     runs-on: ubuntu-latest
+    env:
+      AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+      AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+      AWS_DEFAULT_REGION: ${{ secrets.AWS_REGION || 'us-east-1' }}
     steps:
-      - name: Authenticate to AWS Cloud Storage
-        run: |
-          echo "AWS_ACCESS_KEY_ID=${{ secrets.AWS_ACCESS_KEY_ID }}" >> $GITHUB_ENV
-          echo "AWS_SECRET_ACCESS_KEY=${{ secrets.AWS_SECRET_ACCESS_KEY }}" >> $GITHUB_ENV
-          echo "AWS_DEFAULT_REGION=${{ secrets.AWS_REGION || 'us-east-1' }}" >> $GITHUB_ENV
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.10"
+
+      - name: Install quality-gate dependency
+        run: pip install boto3==1.34.100
 
       - name: Check quality gate & Rollback safety check (Bonus 4)
         run: |
@@ -137,7 +145,7 @@ jobs:
               print(f"❌ FAILED: Current f1_score {f1:.4f} < {threshold}. Huy trien khai.", file=sys.stderr)
               sys.exit(1)
 
-          # Bonus 4: Kiem tra so sanh voi phien ban model truoc do tren S3
+          # Bonus 4: So sanh candidate voi model current CHUA bi ghi de tren S3.
           s3 = boto3.client('s3')
           bucket_name = "${{ secrets.ARTIFACT_BUCKET }}"
           try:
@@ -147,11 +155,16 @@ jobs:
               prev_f1 = float(prev_data.get('f1_score', 0.0))
               print(f"Previous Model F1-Score (from S3): {prev_f1:.4f}")
               if f1 < prev_f1:
-                  print(f"⚠️ Warning: Model moi co F1 ({f1:.4f}) thap hon model cu ({prev_f1:.4f}).")
+                  print(f"❌ FAILED: Candidate F1 ({f1:.4f}) < current F1 ({prev_f1:.4f}). Huy trien khai.", file=sys.stderr)
+                  sys.exit(1)
               else:
                   print(f"✅ PASSED: Model moi co F1 ({f1:.4f}) >= model cu ({prev_f1:.4f}). Khong bi suy giam chat luong.")
-          except Exception as e:
-              print(f"[INFO] Khong tim thay report truoc do tren S3 ({e}), coi nhu day la model release dau tien.")
+          except ClientError as e:
+              error_code = e.response.get('Error', {}).get('Code', '')
+              if error_code in ('404', 'NoSuchKey', 'NotFound'):
+                  print("[INFO] Chua co current report; day la model release dau tien.")
+              else:
+                  raise
 
           print(f"✅ PASSED: Quality Gate hop le. San sang trien khai.")
           print(f"====================================================")
@@ -167,7 +180,18 @@ jobs:
     name: Release
     needs: quality-gate
     runs-on: ubuntu-latest
+    env:
+      AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+      AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+      AWS_DEFAULT_REGION: ${{ secrets.AWS_REGION || 'us-east-1' }}
     steps:
+
+      # Chi promote candidate sau khi ca nguong 0.65 va safety check deu pass.
+      - name: Promote approved candidate to current
+        run: |
+          aws s3 cp "s3://${{ secrets.ARTIFACT_BUCKET }}/artifacts/candidates/${{ github.sha }}/model.joblib" "s3://${{ secrets.ARTIFACT_BUCKET }}/artifacts/current/model.joblib" --only-show-errors
+          aws s3 cp "s3://${{ secrets.ARTIFACT_BUCKET }}/artifacts/candidates/${{ github.sha }}/report.json" "s3://${{ secrets.ARTIFACT_BUCKET }}/artifacts/current/report.json" --only-show-errors
+          echo "Candidate ${{ github.sha }} promoted to artifacts/current/."
 
       - name: SSH deploy to EC2
         uses: appleboy/ssh-action@v1.0.3
