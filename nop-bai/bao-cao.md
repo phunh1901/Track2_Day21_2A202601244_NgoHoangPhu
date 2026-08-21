@@ -1,17 +1,6 @@
 # Báo Cáo Lab Day 21 - CI/CD cho AI Systems
 
-<!--
-HƯỚNG DẪN - đọc rồi XÓA TOÀN BỘ các khối chú thích này sau khi điền xong:
-
-  - Giới hạn: KHÔNG QUÁ 1 TRANG A4, tương đương khoảng 450 - 550 từ nội dung.
-  - Chỉ điền vào các chỗ ___ và các ô trong bảng. Không thêm mục mới.
-  - Viết bằng câu hoàn chỉnh, không gạch đầu dòng cụt lủn.
-  - Kiểm tra độ dài sau khi đã xóa hết chú thích:
-        wc -w nop-bai/bao-cao.md
-    và xem trước bản in bằng cách mở file trên GitHub rồi Ctrl+P / Cmd+P.
--->
-
-| | |
+| Thông tin | Chi tiết |
 |---|---|
 | Họ và tên | Ngô Hoàng Phú |
 | MSSV | 2A202601244 |
@@ -45,40 +34,20 @@ Do đó, ngưỡng chất lượng của hệ thống bắt buộc phải đặt
 
 ## 3. Khó Khăn Gặp Phải và Cách Giải Quyết
 
-<!-- Nêu 2 - 3 khó khăn thật, mỗi ô một câu ngắn. -->
-
 | Khó khăn | Nguyên nhân | Cách giải quyết |
 |---|---|---|
-| ___ | ___ | ___ |
-| ___ | ___ | ___ |
-| ___ | ___ | ___ |
+| Lỗi thiếu module `pkg_resources` khi mở MLflow UI | `setuptools >= 70` không còn tương thích với MLflow 2.13.0 | Cài đặt và cố định phiên bản `setuptools<70` trong `requirements.txt` |
+| `dvc push` bị lỗi `AccessDenied (s3:ListBucket)` | IAM User trên AWS chưa được cấp quyền truy cập S3 Bucket | Gắn quyền `AmazonS3FullAccess` cho User `ai-lab-user` trong AWS IAM |
+| Server EC2 lỗi không load được model (`unpickle CyHalfBinomialLoss`) | Phiên bản `scikit-learn` trên EC2 lệch với bản huấn luyện | Cài đặt chính xác `scikit-learn==1.4.2` trong môi trường ảo trên EC2 |
 
 ---
 
-## 4. So Sánh Bước 2 và Bước 3 (bắt buộc, 2 - 3 câu)
-
-<!-- Lấy số liệu từ bảng ở mục 3.6 của tasks/buoc-3.md. -->
+## 4. So Sánh Bước 2 và Bước 3
 
 | | f1_score | accuracy |
 |---|---|---|
-| Bước 2 (chỉ `train_batch1`) | ___ | ___ |
-| Bước 3 (thêm `train_batch2`) | ___ | ___ |
+| Bước 2 (chỉ `train_batch1`) | 0.7149 | 0.8740 |
+| Bước 3 (thêm `train_batch2`) | 0.7354 | 0.8820 |
 
-**Nhận xét:** ___
+**Nhận xét:** Khi bổ sung thêm 22.361 mẫu từ `train_batch2` (tổng cộng 44.722 mẫu), chỉ số `f1_score` tăng nhẹ từ 0.7149 lên 0.7354 và `accuracy` tăng từ 0.8740 lên 0.8820. Do dữ liệu mới cùng phân phối với dữ liệu ban đầu, việc tăng gấp đôi dữ liệu giúp làm mịn biên quyết định cho nhóm thu nhập cao nhưng không tạo ra biến động quá lớn. Quan trọng nhất, toàn bộ vòng lặp Continuous Training từ lúc cập nhật DVC, đẩy S3 đến tự động huấn luyện và cập nhật API trên EC2 đã diễn ra hoàn toàn tự động và chính xác.
 
-<!--
-Một câu trả lời trung thực kiểu "f1 giảm 0,01 vì dữ liệu mới cùng phân phối, không mang
-thêm thông tin mới" được đánh giá cao hơn kết luận sai rằng thêm dữ liệu luôn tốt hơn.
--->
-
----
-
-## 5. Phần Bonus Đã Thực Hiện (nếu có)
-
-<!-- Xóa cả mục 5 nếu không làm bonus. Mỗi bonus tối đa 1 dòng. -->
-
-- [ ] Bonus 1 - Tracking MLflow từ xa với DagsHub: ___
-- [ ] Bonus 2 - Điều chỉnh ngưỡng quyết định: ___
-- [ ] Bonus 3 - Báo cáo precision / recall tự động: ___
-- [ ] Bonus 4 - Hoàn trả về phiên bản trước: ___
-- [ ] Bonus 5 - Cảnh báo lệch lạc dữ liệu: ___
