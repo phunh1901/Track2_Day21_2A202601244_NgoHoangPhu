@@ -13,52 +13,33 @@ HƯỚNG DẪN - đọc rồi XÓA TOÀN BỘ các khối chú thích này sau k
 
 | | |
 |---|---|
-| Họ và tên | ___ |
-| MSSV | ___ |
+| Họ và tên | Ngô Hoàng Phú |
+| MSSV | 2A202601244 |
 | Lớp / Khóa | K4 |
-| Repo GitHub | https://github.com/___/___ |
-| Ngày nộp | ___ |
+| Repo GitHub | https://github.com/phunh1901/Track2_Day21_2A202601244_NgoHoangPhu |
+| Ngày nộp | 21/8/2026 |
 
 ---
 
 ## 1. Bộ Siêu Tham Số Đã Chọn và Lý Do
 
-<!-- Khoảng 120 - 150 từ. Điền kết quả thật từ MLflow UI ở Bước 1, tối thiểu 3 lần chạy. -->
-
 | Lần chạy | n_estimators | learning_rate | max_depth | f1_score | accuracy |
 |---|---|---|---|---|---|
-| 1 | ___ | ___ | ___ | ___ | ___ |
-| 2 | ___ | ___ | ___ | ___ | ___ |
-| 3 | ___ | ___ | ___ | ___ | ___ |
+| 1 | 200 | 0.1 | 5 | 0.7149 | 0.8740 |
+| 2 | 100 | 0.1 | 3 | 0.7109 | 0.8780 |
+| 3 | 50 | 0.05 | 2 | 0.6051 | 0.8460 |
 
-**Bộ siêu tham số đã chọn:** `n_estimators=___`, `learning_rate=___`, `max_depth=___`.
+**Bộ siêu tham số đã chọn:** `n_estimators=200`, `learning_rate=0.1`, `max_depth=5`.
 
-**Lý do:** ___
-
-<!--
-Trả lời trong phần Lý do:
-  - Vì sao bộ này tốt hơn các bộ còn lại (dựa trên f1_score, không phải accuracy)?
-  - Lần chạy có accuracy cao nhất có trùng với lần có f1_score cao nhất không?
-    Nếu không, điều đó nói lên điều gì?
-  - Bạn quan sát thấy đánh đổi nào giữa n_estimators và learning_rate?
--->
+**Lý do:** Bộ siêu tham số này đạt chỉ số `f1_score` cao nhất (0.7149), vượt qua ngưỡng chất lượng tối thiểu 0.65 để đưa vào pipeline triển khai. Đáng chú ý, lần chạy 2 đạt accuracy cao nhất (0.8780) nhưng f1_score lại thấp hơn (0.7109) so với lần chạy 1. Điều này chứng minh accuracy bị chi phối bởi lớp đa số và không phản ánh chính xác khả năng nhận diện lớp thiểu số. Ngoài ra, việc tăng `n_estimators` lên 200 kết hợp `max_depth=5` giúp mô hình Gradient Boosting học sâu hơn các đặc trưng phi tuyến tính phức tạp của nhóm thu nhập cao mà không bị underfitting như lần chạy 3 (F1 chỉ đạt 0.6051).
 
 ---
 
 ## 2. Vì Sao Ngưỡng Chất Lượng Đặt Trên F1 Chứ Không Phải Accuracy
 
-<!-- Khoảng 120 - 150 từ. -->
+Tập dữ liệu Adult có phân bố lớp mất cân bằng nghiêm trọng với chỉ khoảng 24.8% mẫu thuộc lớp thu nhập cao (>50K) và 75.2% thuộc lớp thu nhập thấp. Nếu một mô hình đơn giản luôn dự đoán nhãn "thu nhập thấp" cho mọi trường hợp, nó vẫn đạt độ chính xác (accuracy) lên tới 75.2% nhưng thực chất F1-score của lớp dương bằng 0 và mô hình hoàn toàn vô dụng trong thực tế.
 
-___
-
-<!--
-Cần nêu được:
-  - Phân bố lớp của tập dữ liệu (tỷ lệ lớp thu nhập > 50K) và hệ quả của nó.
-  - Accuracy của một mô hình luôn trả lời "thu nhập thấp" là bao nhiêu, vì sao con số
-    đó gây hiểu nhầm.
-  - F1 của lớp dương đo điều gì mà accuracy không đo được.
-  - Vì sao KHÔNG dùng average="weighted" hay average="macro" khi gọi f1_score.
--->
+Do đó, ngưỡng chất lượng của hệ thống bắt buộc phải đặt trên `f1_score` của lớp dương (trung bình điều hòa giữa Precision và Recall của nhóm thu nhập >50K) để đo lường chính xác năng lực phát hiện đối tượng mục tiêu. Tuyệt đối không sử dụng `average="weighted"` hay `average="macro"` vì các phương thức này tính gộp cả lớp đa số, làm chỉ số bị kéo tăng ảo và vô hiệu hóa ý nghĩa của cổng kiểm soát chất lượng (Quality Gate).
 
 ---
 
